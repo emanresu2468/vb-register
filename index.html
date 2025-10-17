@@ -134,9 +134,8 @@
         // --- UI UTILITIES ---
         const form = document.getElementById('registrationForm');
         const statusMessage = document.getElementById('statusMessage');
-        const successModal = document.getElementById('successModal');
-        const closeModalButton = document.getElementById('closeModalButton');
-
+        // Removing reference to successModal and closeModalButton as they are no longer used for success.
+        
         function displayMessage(message, isSuccess = true) {
             statusMessage.textContent = message;
             statusMessage.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
@@ -178,10 +177,10 @@
             try {
                 await addDoc(registrationsCollection, formData);
                 
-                // --- SUCCESS ACTION: SHOW MODAL ---
-                statusMessage.classList.add('hidden'); // Hide the working message
-                form.reset();
-                successModal.classList.remove('hidden'); // Show the modal
+                // --- SUCCESS ACTION: REFRESH PAGE ---
+                // The page will reload completely, giving the user a fresh form.
+                console.log("Registration successful. Refreshing page...");
+                window.location.reload(); 
                 
             } catch (e) {
                 console.error("Error adding document (Firestore write failed): ", e);
@@ -189,34 +188,23 @@
             }
         }
         
-        // --- EVENT LISTENERS ---
-        
-        // Listener to close the modal when the button is clicked
-        closeModalButton.addEventListener('click', () => {
-            successModal.classList.add('hidden');
-        });
-        
-        // Listener to close the modal when clicking outside the box
-        successModal.addEventListener('click', (e) => {
-            if (e.target === successModal) {
-                successModal.classList.add('hidden');
-            }
-        });
+        // --- EVENT LISTENERS (Modal event listeners are removed) ---
 
         // Listener for form submission
         form.addEventListener('submit', async function(event) {
             event.preventDefault();
             await authPromise; // Wait for authentication to complete
 
+            // Updated to use .trim() on all inputs for stricter checking against spaces
             const formData = {
                 fullName: document.getElementById('fullName').value.trim(),
-                dateOfBirth: document.getElementById('dob').value,
-                contactNumber: document.getElementById('contactNumber').value, 
-                socialMediaLink: document.getElementById('socialMedia').value,
+                dateOfBirth: document.getElementById('dob').value.trim(), 
+                contactNumber: document.getElementById('contactNumber').value.trim(), 
+                socialMediaLink: document.getElementById('socialMedia').value.trim(),
                 timestamp: new Date().toISOString()
             };
             
-            // Basic client-side validation check
+            // Basic client-side validation check: ensures all fields are NOT empty strings
             if (!formData.socialMediaLink || !formData.contactNumber || !formData.fullName || !formData.dateOfBirth) {
                 displayMessage("Error: Please fill out all required fields.", false);
                 return;
@@ -311,7 +299,7 @@
         <div id="statusMessage" class="mt-6 p-4 rounded-lg text-center hidden" role="alert"></div>
     </div>
     
-    <!-- Modal structure for successful registration -->
+    <!-- Modal structure for successful registration (KEPT HIDDEN BUT NO LONGER USED IN JAVASCRIPT) -->
     <div id="successModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-xl shadow-2xl p-8 max-w-sm w-full text-center transform transition-all duration-300 scale-100">
             <div class="text-green-500 mx-auto mb-4">
