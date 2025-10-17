@@ -33,35 +33,97 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, where, getDocs, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- GLOBAL SETUP (MANDATORY ENVIRONMENT VARIABLES) ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        // =================================================================================
+        // CRITICAL: UPDATED CONFIGURATION FOR EXTERNAL HOSTING (e.g., GitHub Pages)
+        // This configuration has been filled with your project's keys.
+        // =================================================================================
+        const EXTERNAL_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDncYgTDfDD1nijjckBp_IgUvWDahr3jK8",
+            authDomain: "victoryband-registrations.firebaseapp.com",
+            projectId: "victoryband-registrations",
+            storageBucket: "victoryband-registrations.firebasestorage.app",
+            messagingSenderId: "555074312485",
+            appId: "1:555074312485:web:38e2b25a622a4294c862cc"
+        };
+        // =================================================================================
+        
+        
+        // --- GLOBAL SETUP (Handle Canvas vs. External Environment) ---
+        let app, db, auth;
+        let authReady = false;
+
+        const isCanvasEnvironment = typeof __firebase_config !== 'undefined' && typeof __initial_auth_token !== 'undefined';
+        
+        let finalFirebaseConfig, finalAppId, authToken;
+
+        if (isCanvasEnvironment) {
+            // Use Canvas provided configurations
+            finalFirebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            finalAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            authToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+            console.log("Using Canvas Environment Config.");
+        } else {
+            // Use external hardcoded configurations (for GitHub Pages)
+            finalFirebaseConfig = EXTERNAL_FIREBASE_CONFIG;
+            // Use project ID as app ID substitute if provided, otherwise use a placeholder
+            finalAppId = EXTERNAL_FIREBASE_CONFIG.projectId || 'external-app-id-placeholder'; 
+            authToken = null; // No custom token available externally
+            
+            // Critical check for external hosting (now checks if projectId is NOT defined)
+            if (!EXTERNAL_FIREBASE_CONFIG.projectId || EXTERNAL_FIREBASE_CONFIG.projectId === "") {
+                console.error("CRITICAL ERROR: Firebase config is still missing. Cannot save data.");
+                // Use a simple error message instead of alert()
+                document.addEventListener('DOMContentLoaded', () => {
+                    const status = document.getElementById('statusMessage');
+                    if (status) {
+                        status.classList.remove('hidden', 'bg-green-100', 'text-green-800');
+                        status.classList.add('bg-red-100', 'text-red-800');
+                        status.textContent = "FATAL ERROR: Firebase config missing. Cannot save data. See console for instructions.";
+                    }
+                });
+                // Note: Since you provided the config, this block will now be skipped when hosted externally.
+            }
+            console.log("Using External Hosting Config.");
+        }
 
         // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        setLogLevel('debug'); // Enable debug logging for Firestore
-
-        // Firestore Paths
-        const REGISTRATION_COLLECTION_PATH = `artifacts/${appId}/public/data/band_registrations`;
-        const registrationsCollection = collection(db, REGISTRATION_COLLECTION_PATH);
+        try {
+            app = initializeApp(finalFirebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            setLogLevel('debug'); // Enable debug logging for Firestore
+        } catch (e) {
+            console.error("Firebase Initialization Failed:", e);
+            document.addEventListener('DOMContentLoaded', () => {
+                const status = document.getElementById('statusMessage');
+                if (status) {
+                    status.classList.remove('hidden', 'bg-green-100', 'text-green-800');
+                    status.classList.add('bg-red-100', 'text-red-800');
+                    status.textContent = "FATAL ERROR: Firebase connection failed. See console for details.";
+                }
+            });
+            // Stop script execution if initialization fails
+            throw new Error("Initialization failed. Check Firebase Config."); 
+        }
         
+        // Firestore Paths (uses the determined App ID)
+        const REGISTRATION_COLLECTION_PATH = `artifacts/${finalAppId}/public/data/band_registrations`;
+        const registrationsCollection = collection(db, REGISTRATION_COLLECTION_PATH);
+
         // --- AUTHENTICATION PROMISE ---
         let userId = null;
         const authPromise = new Promise(async (resolve) => {
             try {
-                // Ensure persistence is set for the session
                 await setPersistence(auth, browserSessionPersistence);
 
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                if (authToken) {
+                    await signInWithCustomToken(auth, authToken);
                 } else {
                     await signInAnonymously(auth);
                 }
                 
-                // Get current user ID
                 userId = auth.currentUser?.uid || crypto.randomUUID();
+                authReady = true;
                 console.log("Authentication successful, userId:", userId);
             } catch (error) {
                 console.error("Firebase Auth Error:", error);
@@ -80,7 +142,6 @@
             statusMessage.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
 
             if (isSuccess) {
-                // Keep success messages brief here, as the full success is handled by the modal
                 statusMessage.classList.add('bg-green-100', 'text-green-800');
             } else {
                 statusMessage.classList.add('bg-red-100', 'text-red-800');
@@ -89,11 +150,24 @@
 
         // --- CORE FUNCTIONALITY: REGISTRATION AND DUPLICATE CHECK ---
         async function handleRegistration(formData) {
+            if (!authReady) {
+                 displayMessage("Authentication is not ready. Please wait a moment and try again.", false);
+                 return;
+            }
             displayMessage("Checking registration and saving data...", true);
 
             // 1. Check for Duplicate Full Name
             const q = query(registrationsCollection, where("fullName", "==", formData.fullName));
-            const querySnapshot = await getDocs(q);
+            
+            let querySnapshot;
+            try {
+                querySnapshot = await getDocs(q);
+            } catch (e) {
+                console.error("Error checking duplicates (Firestore read failed): ", e);
+                displayMessage("Error reading from database. Check if Firestore is enabled and security rules are correct.", false);
+                return;
+            }
+            
 
             if (!querySnapshot.empty) {
                 displayMessage(`Error: The name "${formData.fullName}" is already registered.`, false);
@@ -110,8 +184,8 @@
                 successModal.classList.remove('hidden'); // Show the modal
                 
             } catch (e) {
-                console.error("Error adding document: ", e);
-                displayMessage("Error saving registration. Please check console for details.", false);
+                console.error("Error adding document (Firestore write failed): ", e);
+                displayMessage("Error saving registration. Ensure your Firebase config and security rules are correct.", false);
             }
         }
         
@@ -245,7 +319,7 @@
                 <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <h2 class="text-2xl font-semibold text-gray-900 mb-2">Registration Complete!</h2>
-            <p class="text-gray-500 mb-6">Thank you for registering with the Victory Band. Welcome aboard!</p>
+            <p class="text-gray-500 mb-6">Your registration has been saved successfully to the centralized database.</p>
             <button id="closeModalButton" class="w-full py-3 px-4 rounded-lg text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out">
                 Close
             </button>
