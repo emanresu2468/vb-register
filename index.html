@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Victory Band City of Bacoor Cavite Member Registration Form</title>
+    <!-- Load Tailwind CSS for responsive, modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Poppins font from Google Fonts for a modern, formal sans-serif look -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for better aesthetics and focus */
+        body {
+            /* Changed font to Poppins for a modern, formal look */
+            font-family: 'Poppins', sans-serif; 
+            background-color: #f7fafc;
+        }
+        .form-input {
+            transition: all 0.2s;
+        }
+        .form-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5); /* Blue shadow on focus */
+            border-color: #4299e1;
+        }
+        .logo-container {
+            margin-bottom: 1.5rem;
+        }
+    </style>
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GLOBAL SETUP (MANDATORY ENVIRONMENT VARIABLES) ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        setLogLevel('debug'); // Enable debug logging for Firestore
+
+        // Firestore Paths
+        const REGISTRATION_COLLECTION_PATH = `artifacts/${appId}/public/data/band_registrations`;
+        const registrationsCollection = collection(db, REGISTRATION_COLLECTION_PATH);
+        
+        // --- AUTHENTICATION PROMISE ---
+        let userId = null;
+        const authPromise = new Promise(async (resolve) => {
+            try {
+                // Ensure persistence is set for the session
+                await setPersistence(auth, browserSessionPersistence);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                // Get current user ID
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                console.log("Authentication successful, userId:", userId);
+            } catch (error) {
+                console.error("Firebase Auth Error:", error);
+            }
+            resolve();
+        });
+        
+        // --- UI UTILITIES ---
+        const form = document.getElementById('registrationForm');
+        const statusMessage = document.getElementById('statusMessage');
+
+        function displayMessage(message, isSuccess = true) {
+            statusMessage.textContent = message;
+            statusMessage.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
+
+            if (isSuccess) {
+                statusMessage.classList.add('bg-green-100', 'text-green-800');
+            } else {
+                statusMessage.classList.add('bg-red-100', 'text-red-800');
+            }
+        }
+
+        // --- CORE FUNCTIONALITY: REGISTRATION AND DUPLICATE CHECK ---
+        async function handleRegistration(formData) {
+            displayMessage("Checking registration and saving data...", true);
+
+            // 1. Check for Duplicate Full Name
+            const q = query(registrationsCollection, where("fullName", "==", formData.fullName));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                displayMessage(`Error: The name "${formData.fullName}" is already registered.`, false);
+                return;
+            }
+
+            // 2. Save Data to Firestore
+            try {
+                await addDoc(registrationsCollection, formData);
+                displayMessage("Success! Your registration has been saved to the database.", true);
+                form.reset();
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                displayMessage("Error saving registration. Please check console for details.", false);
+            }
+        }
+        
+        // --- EVENT LISTENER FOR REGISTRATION ---
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            await authPromise; // Wait for authentication to complete
+
+            const formData = {
+                fullName: document.getElementById('fullName').value.trim(),
+                dateOfBirth: document.getElementById('dob').value,
+                contactNumber: document.getElementById('contactNumber').value, 
+                socialMediaLink: document.getElementById('socialMedia').value,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Basic client-side validation check
+            if (!formData.socialMediaLink || !formData.contactNumber || !formData.fullName || !formData.dateOfBirth) {
+                displayMessage("Error: Please fill out all required fields.", false);
+                return;
+            }
+
+            await handleRegistration(formData);
+        });
+
+    </script>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Registration Card -->
+    <div class="w-full max-w-lg bg-white shadow-2xl rounded-xl p-6 sm:p-10 border border-gray-100">
+        
+        <!-- Logo Element -->
+        <img 
+            src="uploaded:EST BLACK MID CIRCLE.png-ce921774-f1eb-40b5-bd96-0ad81f2db834" 
+            alt="Victory Band Logo" 
+            class="w-36 h-36 mx-auto mb-6"
+        >
+
+        <!-- Changed font-extrabold to font-semibold to reduce the boldness -->
+        <h1 class="text-3xl font-semibold text-gray-900 mb-6 text-center">Victory Band City of Bacoor Cavite Member Registration Form</h1>
+        <p class="text-gray-500 mb-8 text-center">Fill out the form below to register. The social media link and contact number are required.</p>
+
+        <form id="registrationForm" class="space-y-6">
+
+            <!-- Full Name -->
+            <div>
+                <label for="fullName" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <input
+                    type="text"
+                    id="fullName"
+                    name="fullName"
+                    required
+                    placeholder="Jane Doe"
+                    class="form-input w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+            </div>
+
+            <!-- Date of Birth -->
+            <div>
+                <label for="dob" class="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                <input
+                    type="date"
+                    id="dob"
+                    name="dob"
+                    required
+                    class="form-input w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+            </div>
+
+            <!-- Contact Number (REQUIRED FIELD) -->
+            <div>
+                <label for="contactNumber" class="block text-sm font-medium text-gray-700 mb-1">Contact Number (Required)</label>
+                <input
+                    type="tel"
+                    id="contactNumber"
+                    name="contactNumber"
+                    required
+                    placeholder="e.g., 09171234567"
+                    pattern="[0-9]{11}" 
+                    title="Please enter a valid 11-digit phone number (e.g., 09171234567)"
+                    class="form-input w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+            </div>
+
+            <!-- Social Media Profile Link (REQUIRED) -->
+            <div>
+                <label for="socialMedia" class="block text-sm font-medium text-gray-700 mb-1">Social Media Profile Link (Required)</label>
+                <input
+                    type="url"
+                    id="socialMedia"
+                    name="socialMedia"
+                    required
+                    placeholder="https://instagram.com/your_profile"
+                    class="form-input w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+            </div>
+
+            <!-- Submission Button -->
+            <button
+                type="submit"
+                class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out"
+            >
+                Register
+            </button>
+        </form>
+
+        <!-- Message/Status Area -->
+        <div id="statusMessage" class="mt-6 p-4 rounded-lg text-center hidden" role="alert"></div>
+    </div>
+</body>
+</html>
