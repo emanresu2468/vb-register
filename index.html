@@ -134,7 +134,9 @@
         // --- UI UTILITIES ---
         const form = document.getElementById('registrationForm');
         const statusMessage = document.getElementById('statusMessage');
-        // Removing reference to successModal and closeModalButton as they are no longer used for success.
+        // RE-ADDED: Reference to the modal elements
+        const successModal = document.getElementById('successModal');
+        const closeModalButton = document.getElementById('closeModalButton');
         
         function displayMessage(message, isSuccess = true) {
             statusMessage.textContent = message;
@@ -177,10 +179,11 @@
             try {
                 await addDoc(registrationsCollection, formData);
                 
-                // --- SUCCESS ACTION: REFRESH PAGE ---
-                // The page will reload completely, giving the user a fresh form.
-                console.log("Registration successful. Refreshing page...");
-                window.location.reload(); 
+                // --- SUCCESS ACTION: SHOW MODAL (Reverted to previous behavior) ---
+                form.reset(); // Reset the form fields
+                statusMessage.classList.add('hidden'); // Hide the working message
+                successModal.classList.remove('hidden'); // Show the modal
+                console.log("Registration successful. Modal displayed.");
                 
             } catch (e) {
                 console.error("Error adding document (Firestore write failed): ", e);
@@ -188,7 +191,20 @@
             }
         }
         
-        // --- EVENT LISTENERS (Modal event listeners are removed) ---
+        // --- EVENT LISTENERS ---
+
+        // RE-ADDED: Listener for close modal button
+        document.addEventListener('DOMContentLoaded', () => {
+            const closeModalButton = document.getElementById('closeModalButton');
+            const successModal = document.getElementById('successModal');
+
+            if (closeModalButton && successModal) {
+                closeModalButton.addEventListener('click', function() {
+                    successModal.classList.add('hidden'); // Hide the modal
+                });
+            }
+        });
+
 
         // Listener for form submission
         form.addEventListener('submit', async function(event) {
@@ -299,7 +315,7 @@
         <div id="statusMessage" class="mt-6 p-4 rounded-lg text-center hidden" role="alert"></div>
     </div>
     
-    <!-- Modal structure for successful registration (KEPT HIDDEN BUT NO LONGER USED IN JAVASCRIPT) -->
+    <!-- Modal structure for successful registration -->
     <div id="successModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-xl shadow-2xl p-8 max-w-sm w-full text-center transform transition-all duration-300 scale-100">
             <div class="text-green-500 mx-auto mb-4">
